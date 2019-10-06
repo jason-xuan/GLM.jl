@@ -268,7 +268,7 @@ end
 dof(x::GeneralizedLinearModel) = dispersion_parameter(x.rr.d) ? length(coef(x)) + 1 : length(coef(x))
 
 function _fit!(m::AbstractGLM, verbose::Bool, maxiter::Integer, minstepfac::Real,
-               atol::Real, rtol::Real, start; allowrankdeficient::Bool=false)
+               atol::Real, rtol::Real, start)
 
     # Return early if model has the fit flag set
     m.fit && return m
@@ -285,7 +285,7 @@ function _fit!(m::AbstractGLM, verbose::Bool, maxiter::Integer, minstepfac::Real
     if start == nothing || isempty(start)
         # Compute beta update based on default response value
         # if no starting values have been passed
-        delbeta!(p, wrkresp(r), r.wrkwt; allowrankdeficient=allowrankdeficient)
+        delbeta!(p, wrkresp(r), r.wrkwt)
         linpred!(lp, p)
         updateμ!(r, lp)
         installbeta!(p)
@@ -304,7 +304,7 @@ function _fit!(m::AbstractGLM, verbose::Bool, maxiter::Integer, minstepfac::Real
 
         # Compute the change to β, update μ and compute deviance
         try
-            delbeta!(p, r.wrkresid, r.wrkwt; allowrankdeficient=allowrankdeficient)
+            delbeta!(p, r.wrkresid, r.wrkwt)
             linpred!(lp, p)
             updateμ!(r, lp)
             dev = deviance(m)
@@ -349,7 +349,6 @@ function StatsBase.fit!(m::AbstractGLM;
                         atol::Real=1e-6,
                         rtol::Real=1e-6,
                         start=nothing,
-                        allowrankdeficient::Bool=false,
                         kwargs...)
     if haskey(kwargs, :maxIter)
         Base.depwarn("'maxIter' argument is deprecated, use 'maxiter' instead", :fit!)
@@ -371,8 +370,7 @@ function StatsBase.fit!(m::AbstractGLM;
         rtol = kwargs[:tol]
     end
 
-    _fit!(m, verbose, maxiter, minstepfac, atol, rtol, start;
-          allowrankdeficient=allowrankdeficient)
+    _fit!(m, verbose, maxiter, minstepfac, atol, rtol, start)
 end
 
 function StatsBase.fit!(m::AbstractGLM,
@@ -386,7 +384,6 @@ function StatsBase.fit!(m::AbstractGLM,
                         atol::Real=1e-6,
                         rtol::Real=1e-6,
                         start=nothing,
-                        allowrankdeficient::Bool=false,
                         kwargs...)
     if haskey(kwargs, :maxIter)
         Base.depwarn("'maxIter' argument is deprecated, use 'maxiter' instead", :fit!)
@@ -418,8 +415,7 @@ function StatsBase.fit!(m::AbstractGLM,
     fill!(m.pp.beta0, 0)
     m.fit = false
     if dofit
-        _fit!(m, verbose, maxiter, minstepfac, atol, rtol, start;
-            allowrankdeficient=allowrankdeficient)
+        _fit!(m, verbose, maxiter, minstepfac, atol, rtol, start)
     else
         m
     end
@@ -472,7 +468,7 @@ function fit(::Type{M},
 
     rr = GlmResp(y, d, l, offset, wts)
     res = M(rr, cholpred(X, allowrankdeficient), false)
-    return dofit ? fit!(res; allowrankdeficient=allowrankdeficient, fitargs...) : res
+    return dofit ? fit!(res; fitargs...) : res
 end
 
 fit(::Type{M},
