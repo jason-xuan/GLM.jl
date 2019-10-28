@@ -172,7 +172,7 @@ function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vecto
     mul!(p.scratchm2, adjoint(p.scratchm1), p.X)
     # delbeta = A'Wz
     mul!(delbeta, transpose(p.scratchm1), r)
-    # calculate delbeta = delbeta
+    # calculate delbeta = (A'WA)\A'Wz
     permute!(delbeta, piv)
     for k=(rnk+1):length(delbeta)
         delbeta[k] = -zero(T)
