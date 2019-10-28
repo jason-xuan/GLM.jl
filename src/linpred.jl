@@ -192,47 +192,6 @@ function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vecto
     p
 end
 
-function checktype(A::StridedMatrix{T}) where T
-    m, n = size(A)
-    if m == n
-        if m == 1 return A[1] end
-        utri    = true
-        utri1   = true
-        herm    = true
-        sym     = true
-        for j = 1:n-1, i = j+1:m
-            if utri1
-                if A[i,j] != 0
-                    utri1 = i == j + 1
-                    utri = false
-                end
-            end
-            if sym
-                sym &= A[i,j] == A[j,i]
-            end
-            if herm
-                herm &= A[i,j] == conj(A[j,i])
-            end
-            if !(utri1|herm|sym) break end
-        end
-        ltri = true
-        ltri1 = true
-        for j = 3:n, i = 1:j-2
-            ltri1 &= A[i,j] == 0
-            if !ltri1 break end
-        end
-        if ltri1
-            for i = 1:n-1
-                if A[i,i+1] != 0
-                    ltri &= false
-                    break
-                end
-            end
-        end
-    end
-    return "utri: $utri, utri1: $utri1, herm: $herm, sym: $sym, ltri: $ltri, ltri1: $ltri1\n"
-end
-
 mutable struct SparsePredChol{T,M<:SparseMatrixCSC,C} <: GLM.LinPred
     X::M                           # model matrix
     Xt::M                          # X'
