@@ -173,15 +173,22 @@ function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vecto
     # delbeta = X'Wz
     mul!(delbeta, transpose(p.scratchm1), r)
     # calculate delbeta = (X'WX)\X'Wr
-    permute!(delbeta, piv)
-    for k=(rnk+1):length(delbeta)
-        delbeta[k] = -zero(T)
+    if rnk == length(delbeta)
+        cf = cholfactors(ch)
+        cf .= p.scratchm2
+        cholesky!(Hermitian(cf, :U))
+        ldiv!(ch, delbeta)
+    else
+        permute!(delbeta, piv)
+        for k=(rnk+1):length(delbeta)
+            delbeta[k] = -zero(T)
+        end
+        # shift full rank column to 1:rank
+        p.scratchm2 .= p.scratchm2[piv, piv]
+        cholesky!(Hermitian(view(p.scratchm2, 1:rnk, 1:rnk), :U))
+        ldiv!(Cholesky(view(p.scratchm2, 1:rnk, 1:rnk), :U, 0), view(delbeta, 1:rnk))
+        invpermute!(delbeta, piv)
     end
-    # shift full rank column to 1:rank
-    p.scratchm2 .= p.scratchm2[piv, piv]
-    cholesky!(Hermitian(view(p.scratchm2, 1:rnk, 1:rnk), :U))
-    ldiv!(Cholesky(view(p.scratchm2, 1:rnk, 1:rnk), :U, 0), view(delbeta, 1:rnk))
-    invpermute!(delbeta, piv)
     p
 end
 
