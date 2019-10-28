@@ -162,13 +162,68 @@ function delbeta!(p::DensePredChol{T,<:Cholesky}, r::Vector{T}, wt::Vector{T}) w
 end
 
 function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
-    cf = cholfactors(p.chol)
-    piv = p.chol.piv
-    cf .= mul!(p.scratchm2, adjoint(LinearAlgebra.mul!(p.scratchm1, Diagonal(wt), p.X)), p.X)[piv, piv]
-    # cholesky!(Hermitian(cf, Symbol(p.chol.uplo)), Val(true), tol = -one(T), check = false)
-    # ldiv!(p.chol, mul!(p.delbeta, transpose(p.scratchm1), r))
-    mul!(p.delbeta, inv(p.scratchm2), transpose(p.scratchm1) * r)
+    ch = p.chol
+    delbeta = p.delbeta
+    piv = ch.piv # inverse vector
+    rnk = rank(ch)
+    # p.scratchm1 = WA
+    mul!(p.scratchm1, Diagonal(wt), p.X)
+    # p.scratchm2 = A'WA
+    mul!(p.scratchm2, adjoint(p.scratchm1), p.X)
+    # delbeta = A'Wz
+    mul!(delbeta, transpose(p.scratchm1), r)
+    # calculate delbeta = delbeta
+    permute!(delbeta, piv)
+    for k=(rnk+1):length(delbeta)
+        delbeta[k] = -zero(T)
+    end
+    # shift full rank column to 1:rank
+    X = convert(Matrix, view(p.scratchm2[piv, piv], 1:rnk, 1:rnk))
+    chol = cholesky(Hermitian(X, :U), Val(true), tol = -one(T), check = false)
+    ldiv!(chol, view(delbeta, 1:rnk))
+    invpermute!(delbeta, piv)
     p
+end
+
+function checktype(A::StridedMatrix{T}) where T
+    m, n = size(A)
+    if m == n
+        if m == 1 return A[1] end
+        utri    = true
+        utri1   = true
+        herm    = true
+        sym     = true
+        for j = 1:n-1, i = j+1:m
+            if utri1
+                if A[i,j] != 0
+                    utri1 = i == j + 1
+                    utri = false
+                end
+            end
+            if sym
+                sym &= A[i,j] == A[j,i]
+            end
+            if herm
+                herm &= A[i,j] == conj(A[j,i])
+            end
+            if !(utri1|herm|sym) break end
+        end
+        ltri = true
+        ltri1 = true
+        for j = 3:n, i = 1:j-2
+            ltri1 &= A[i,j] == 0
+            if !ltri1 break end
+        end
+        if ltri1
+            for i = 1:n-1
+                if A[i,i+1] != 0
+                    ltri &= false
+                    break
+                end
+            end
+        end
+    end
+    return "utri: $utri, utri1: $utri1, herm: $herm, sym: $sym, ltri: $ltri, ltri1: $ltri1\n"
 end
 
 mutable struct SparsePredChol{T,M<:SparseMatrixCSC,C} <: GLM.LinPred
