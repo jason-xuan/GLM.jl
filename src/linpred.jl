@@ -178,7 +178,7 @@ function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vecto
         delbeta[k] = -zero(T)
     end
     # shift full rank column to 1:rank
-    p.scratchm2 = p.scratchm2[piv, piv]
+    p.scratchm2 .= p.scratchm2[piv, piv]
     cholesky!(Hermitian(view(p.scratchm2, 1:rnk, 1:rnk), :U))
     ldiv!(Cholesky(view(p.scratchm2, 1:rnk, 1:rnk), :U, 0), view(delbeta, 1:rnk))
     invpermute!(delbeta, piv)
