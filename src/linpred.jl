@@ -7,11 +7,6 @@ The effective coefficient vector, `p.scratchbeta`, is evaluated as `p.beta0 .+ f
 and `out` is updated to `p.X * p.scratchbeta`
 """
 function linpred!(out, p::LinPred, f::Real=1.)
-    for i in eachindex(p.delbeta)
-        if isnan(p.delbeta[i]) || isinf(p.delbeta[i])
-            p.delbeta[i] = 0
-        end
-    end
     mul!(out, p.X, iszero(f) ? p.beta0 : broadcast!(muladd, p.scratchbeta, f, p.delbeta, p.beta0))
 end
 
@@ -162,33 +157,11 @@ function delbeta!(p::DensePredChol{T,<:Cholesky}, r::Vector{T}, wt::Vector{T}) w
 end
 
 function delbeta!(p::DensePredChol{T,<:CholeskyPivoted}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
-    ch = p.chol
-    delbeta = p.delbeta
-    piv = ch.piv # inverse vector
-    rnk = rank(ch)
-    # p.scratchm1 = WX
-    mul!(p.scratchm1, Diagonal(wt), p.X)
-    # p.scratchm2 = X'WX
-    mul!(p.scratchm2, adjoint(p.scratchm1), p.X)
-    # delbeta = X'Wz
-    mul!(delbeta, transpose(p.scratchm1), r)
-    # calculate delbeta = (X'WX)\X'Wr
-    if rnk == length(delbeta)
-        cf = cholfactors(ch)
-        cf .= p.scratchm2
-        cholesky!(Hermitian(cf, :U))
-        ldiv!(ch, delbeta)
-    else
-        permute!(delbeta, piv)
-        for k=(rnk+1):length(delbeta)
-            delbeta[k] = -zero(T)
-        end
-        # shift full rank column to 1:rank
-        p.scratchm2 .= p.scratchm2[piv, piv]
-        cholesky!(Hermitian(view(p.scratchm2, 1:rnk, 1:rnk), :U))
-        ldiv!(Cholesky(view(p.scratchm2, 1:rnk, 1:rnk), :U, 0), view(delbeta, 1:rnk))
-        invpermute!(delbeta, piv)
-    end
+    cf = cholfactors(p.chol)
+    piv = p.chol.piv
+    cf .= mul!(p.scratchm2, adjoint(LinearAlgebra.mul!(p.scratchm1, Diagonal(wt), p.X)), p.X)[piv, piv]
+    cholesky!(Hermitian(cf, Symbol(p.chol.uplo)))
+    ldiv!(p.chol, mul!(p.delbeta, transpose(p.scratchm1), r))
     p
 end
 
@@ -212,12 +185,7 @@ function SparsePredChol(X::SparseMatrixCSC{T}) where T
         similar(X))
 end
 
-function cholpred(X::SparseMatrixCSC, pivot::Bool=false)
-    if pivot
-        throw(ArgumentError("Pivoting sparse X is not yet supported"))
-    end
-    return SparsePredChol(X)
-end
+cholpred(X::SparseMatrixCSC) = SparsePredChol(X)
 
 function delbeta!(p::SparsePredChol{T}, r::Vector{T}, wt::Vector{T}) where T
     scr = mul!(p.scratch, Diagonal(wt), p.X)
