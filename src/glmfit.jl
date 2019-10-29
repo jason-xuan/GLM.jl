@@ -437,12 +437,14 @@ deviance is less than `max(rtol*dev, atol)`.
 - `minstepfac::Real=0.001`: Minimum line step fraction. Must be between 0 and 1.
 - `start::AbstractVector=nothing`: Starting values for beta. Should have the
 same length as the number of columns in the model matrix.
+- `allowrankdeficient::Bool=false`: Allow model matrix to be rank deficient
 """
 function fit(::Type{M},
     X::Union{Matrix{T},SparseMatrixCSC{T}},
     y::V,
     d::UnivariateDistribution,
     l::Link = canonicallink(d);
+    allowrankdeficient::Bool = false,
     dofit::Bool = true,
     wts::V      = similar(y, 0),
     offset::V   = similar(y, 0),
@@ -454,7 +456,7 @@ function fit(::Type{M},
     end
 
     rr = GlmResp(y, d, l, offset, wts)
-    res = M(rr, cholpred(X), false)
+    res = M(rr, cholpred(X, allowrankdeficient), false)
     return dofit ? fit!(res; fitargs...) : res
 end
 
